@@ -1,6 +1,6 @@
 # Multi-stage build: compile in a full Go image, ship a distroless runtime.
 # Distroless = no shell, no package manager, minimal CVE surface, smaller image.
-FROM golang:1.22-alpine AS build
+FROM golang:1.27.1-alpine AS build
 WORKDIR /src
 COPY src/go.mod src/go.sum ./
 RUN go mod download 
