@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: platform-app
+  namespace: app
+spec:
+  minAvailable: 2   # tolerate node drains / cluster upgrades without dropping below 2 replicas
+  selector:
+    matchLabels:
+      app: platform-app

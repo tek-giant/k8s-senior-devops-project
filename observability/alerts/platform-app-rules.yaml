@@ -1,0 +1,66 @@
+# PrometheusRule CRD: alerts scoped to the sample app + cluster health.
+# Written as SLO-style burn-rate alerts, not naive threshold alerts.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-app-alerts
+  namespace: observability
+  labels:
+    release: kps
+spec:
+  groups:
+    - name: platform-app.slo
+      rules:
+        - alert: HighErrorRateFastBurn
+          expr: |
+            sum(rate(http_requests_total{path!="/metrics",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{path!="/metrics"}[5m]))
+            > 0.02
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "platform-app 5xx rate > 2% for 5m (fast burn)"
+            runbook: "docs/runbooks/high-error-rate.md"
+
+        - alert: HighErrorRateSlowBurn
+          expr: |
+            sum(rate(http_requests_total{path!="/metrics",status=~"5.."}[1h]))
+            /
+            sum(rate(http_requests_total{path!="/metrics"}[1h]))
+            > 0.01
+          for: 30m
+          labels: { severity: warning }
+          annotations:
+            summary: "platform-app 5xx rate > 1% over 1h (slow burn)"
+            runbook: "docs/runbooks/high-error-rate.md"
+
+        - alert: HighP99Latency
+          expr: |
+            histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "platform-app p99 latency > 1s for 10m"
+
+        - alert: PodCrashLoopBackOff
+          expr: increase(kube_pod_container_status_restarts_total{namespace="app"}[15m]) > 3
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "{{ $labels.pod }} is crash-looping"
+            runbook: "docs/runbooks/pod-crashloop.md"
+
+        - alert: HPAAtMaxReplicas
+          expr: kube_horizontalpodautoscaler_status_current_replicas{namespace="app"} >= kube_horizontalpodautoscaler_spec_max_replicas{namespace="app"}
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "platform-app HPA pinned at max replicas - capacity risk"
+
+        - alert: NodeDiskPressure
+          expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Node {{ $labels.node }} reporting DiskPressure"

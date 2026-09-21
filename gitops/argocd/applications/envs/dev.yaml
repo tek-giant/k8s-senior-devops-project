@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-app-dev
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ORG/k8s-senior-devops-project.git
+    targetRevision: main
+    path: kubernetes/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true      # dev: fully automatic, self-healing
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

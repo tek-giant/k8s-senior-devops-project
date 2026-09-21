@@ -1,0 +1,51 @@
+# Helm values for kube-prometheus-stack (prometheus-community chart).
+# Installed once: helm install kps prometheus-community/kube-prometheus-stack -n observability -f this file
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { cpu: "1", memory: 2Gi }
+    # scrape any pod annotated prometheus.io/scrape=true (our sample app included)
+    additionalScrapeConfigs:
+      - job_name: annotated-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+alertmanager:
+  config:
+    route:
+      receiver: slack-platform
+      group_by: ["alertname", "namespace"]
+      routes:
+        - matchers: [severity="critical"]
+          receiver: pagerduty
+    receivers:
+      - name: slack-platform
+        slack_configs:
+          - api_url: "REPLACE_WITH_SECRET_REF"
+            channel: "#platform-alerts"
+      - name: pagerduty
+        pagerduty_configs:
+          - service_key: "REPLACE_WITH_SECRET_REF"
+
+grafana:
+  adminPassword: "REPLACE_ME"   # in practice: sourced from External Secrets, not committed
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts: ["grafana.example.com"]
+  persistence:
+    enabled: true
+    size: 10Gi

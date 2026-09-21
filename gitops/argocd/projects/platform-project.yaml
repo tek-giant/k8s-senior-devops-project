@@ -1,0 +1,25 @@
+# Argo CD AppProject: scopes what the platform-app Applications are allowed to
+# deploy (which repos, which destination namespaces) - defense in depth even
+# though Argo CD itself is trusted.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: Sample platform application across dev/staging/prod
+  sourceRepos:
+    - "https://github.com/ORG/k8s-senior-devops-project.git"
+  destinations:
+    - namespace: app
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  roles:
+    - name: readonly
+      policies:
+        - p, proj:platform:readonly, applications, get, platform/*, allow

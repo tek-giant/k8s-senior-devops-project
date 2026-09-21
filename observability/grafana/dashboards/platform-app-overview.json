@@ -1,0 +1,42 @@
+{
+  "title": "Platform App - Overview",
+  "uid": "platform-app-overview",
+  "tags": ["platform-app", "slo"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "title": "Request rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum(rate(http_requests_total[5m])) by (path)" }]
+    },
+    {
+      "title": "Error rate (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "100 * sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))"
+      }]
+    },
+    {
+      "title": "P50 / P95 / P99 latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "title": "Pod count vs HPA target",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"app\"}", "legendFormat": "current" },
+        { "expr": "kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"app\"}", "legendFormat": "max" }
+      ]
+    }
+  ]
+}

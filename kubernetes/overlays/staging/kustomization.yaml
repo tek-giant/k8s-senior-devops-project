@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: app
+resources:
+  - ../../base
+patches:
+  - path: patch-deployment.yaml
+  - path: patch-ingress.yaml
+images:
+  - name: ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app
+    newTag: staging-a1b2c3d   # promoted from dev's exact image after validation, same SHA

@@ -1,0 +1,49 @@
+# Manual promotion: staging and prod are promoted by a human running this
+# workflow with the exact SHA that's already been validated in dev/staging.
+# This is the "same artifact through every environment" guarantee - nothing
+# is rebuilt, only re-tagged into a higher overlay after review.
+name: Promote image to environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [staging, prod]
+      image_tag:
+        description: "Image tag already validated in the previous environment (e.g. dev-a1b2c3d)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}   # prod = requires GitHub Environment approval gate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install kustomize
+        run: curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+
+      - name: Bump image tag
+        working-directory: kubernetes/overlays/${{ github.event.inputs.environment }}
+        run: |
+          ../../../kustomize edit set image \
+            ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app=ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app:${{ github.event.inputs.image_tag }}
+
+      - name: Open PR for review (prod requires a merged PR, never a direct push)
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(${{ github.event.inputs.environment }}): promote ${{ github.event.inputs.image_tag }}"
+          branch: promote-${{ github.event.inputs.environment }}-${{ github.event.inputs.image_tag }}
+          title: "Promote ${{ github.event.inputs.image_tag }} to ${{ github.event.inputs.environment }}"
+          body: |
+            Promotes the already-scanned, already-validated image
+            `${{ github.event.inputs.image_tag }}` to **${{ github.event.inputs.environment }}**.
+            Merging this PR is what triggers Argo CD to sync.

@@ -1,0 +1,25 @@
+# Root "app of apps": Argo CD watches this single Application, which in turn
+# declares one Application per environment. Adding a new environment is a
+# one-file PR here, not a manual `argocd app create`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-app-of-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ORG/k8s-senior-devops-project.git
+    targetRevision: main
+    path: gitops/argocd/applications/envs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

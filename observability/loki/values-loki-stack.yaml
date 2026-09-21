@@ -1,0 +1,26 @@
+# Helm values for grafana/loki-stack: Loki + Promtail for centralized log
+# aggregation. Grafana (already deployed above) queries Loki as a datasource.
+loki:
+  persistence:
+    enabled: true
+    size: 50Gi
+  config:
+    limits_config:
+      retention_period: 336h   # 14 days
+
+promtail:
+  config:
+    snippets:
+      pipelineStages:
+        - docker: {}
+        - match:
+            selector: '{namespace="app"}'
+            stages:
+              - json:
+                  expressions:
+                    level: level
+                    msg: msg
+
+grafana:
+  # points at the Grafana already deployed by kube-prometheus-stack instead of installing a second one
+  enabled: false

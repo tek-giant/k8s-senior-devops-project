@@ -1,0 +1,40 @@
+# CD (dev only): after CI pushes an image from main, bump the dev overlay's
+# image tag via a commit to THIS repo's GitOps path. Argo CD (already watching
+# kubernetes/overlays/dev) picks up the change and syncs automatically.
+# This job has git write access - it never has cluster or AWS deploy credentials.
+name: CD - promote to dev
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-dev-image:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install kustomize
+        run: curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+
+      - name: Bump image tag in dev overlay
+        working-directory: kubernetes/overlays/dev
+        run: |
+          ../../../kustomize edit set image \
+            ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app=ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app:dev-${GITHUB_SHA::7}
+
+      - name: Commit and push
+        run: |
+          git config user.name "gitops-bot"
+          git config user.email "gitops-bot@example.com"
+          git add kubernetes/overlays/dev/kustomization.yaml
+          git commit -m "chore(dev): deploy dev-${GITHUB_SHA::7}" || echo "no changes"
+          git push

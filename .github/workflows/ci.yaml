@@ -1,0 +1,85 @@
+# CI: build, test, scan, push. This workflow NEVER touches the Kubernetes
+# cluster and holds no kubeconfig - it only needs ECR push + git write access.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # for OIDC assume-role into AWS, no static keys
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: platform-app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Unit tests
+        working-directory: app/src
+        run: go test ./... -race -cover
+
+  build-scan-push:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "tag=$(echo ${GITHUB_SHA} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials (OIDC, no static keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::743978812281:role/github-actions-ci
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Check AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.tag }} app/
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+
+      - name: Scan image with Trivy (block on CRITICAL)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}"
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Push image
+        if: github.event_name == 'push'
+        run: docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.tag }}
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json

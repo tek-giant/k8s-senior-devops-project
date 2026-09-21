@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-app-prod
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ORG/k8s-senior-devops-project.git
+    targetRevision: main
+    path: kubernetes/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    # prod: NOT automated. A human clicks "Sync" in Argo CD (or approves a
+    # sync via CI) after the image tag PR to overlays/prod is merged.
+    # This is the deliberate manual gate between staging and prod.
+    syncOptions:
+      - CreateNamespace=true

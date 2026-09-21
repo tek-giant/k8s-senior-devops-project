@@ -1,0 +1,33 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-and-root
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: no-privileged
+      match:
+        any:
+          - resources: { kinds: [Pod] }
+      validate:
+        message: "Privileged containers and privilege escalation are not allowed."
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  privileged: "false"
+                  allowPrivilegeEscalation: "false"
+    - name: no-root
+      match:
+        any:
+          - resources: { kinds: [Pod] }
+      validate:
+        message: "Containers must not run as root (runAsNonRoot: true required)."
+        pattern:
+          spec:
+            =(securityContext):
+              =(runAsNonRoot): "true"
+            containers:
+              - =(securityContext):
+                  =(runAsNonRoot): "true"

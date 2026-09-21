@@ -1,0 +1,26 @@
+# Helm values for the official argo-cd chart (argoproj/argo-helm).
+# Installed once via: helm install argocd argo/argo-cd -n argocd -f values-argocd.yaml
+server:
+  extraArgs:
+    - --insecure   # TLS terminated at the ingress/ALB in front of Argo CD
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts: ["argocd.example.com"]
+    tls:
+      - hosts: ["argocd.example.com"]
+        secretName: argocd-server-tls
+
+configs:
+  params:
+    server.insecure: true
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:ci-bot, applications, sync, platform/*, allow
+      g, platform-team, role:admin
+
+controller:
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }

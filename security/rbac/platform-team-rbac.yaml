@@ -1,0 +1,56 @@
+# Namespace-scoped RBAC: platform engineers get full control of the `app`
+# namespace; developers get read + exec (for debugging) but cannot delete or
+# edit Secrets directly - secrets flow only through External Secrets Operator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-engineer
+  namespace: app
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer-readonly
+  namespace: app
+rules:
+  - apiGroups: ["", "apps", "batch", "autoscaling"]
+    resources: ["pods", "deployments", "services", "jobs", "horizontalpodautoscalers", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log", "pods/exec"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: []   # explicitly no access - secrets are managed exclusively via ExternalSecret + IRSA
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-engineers-binding
+  namespace: app
+subjects:
+  - kind: Group
+    name: platform-engineers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: platform-engineer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: developers-binding
+  namespace: app
+subjects:
+  - kind: Group
+    name: developers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: developer-readonly
+  apiGroup: rbac.authorization.k8s.io

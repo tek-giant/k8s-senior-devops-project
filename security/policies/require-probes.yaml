@@ -1,0 +1,21 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes
+spec:
+  validationFailureAction: Audit   # start in Audit, promote to Enforce once existing workloads are compliant
+  background: true
+  rules:
+    - name: validate-probes
+      match:
+        any:
+          - resources: { kinds: [Deployment] }
+      validate:
+        message: "Every container must define readinessProbe and livenessProbe."
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - readinessProbe: "?*"
+                    livenessProbe: "?*"

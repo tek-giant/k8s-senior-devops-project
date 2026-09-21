@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-app
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging   # avoid burning prod LE rate limits from dev
+spec:
+  tls:
+    - hosts: ["dev.app.example.com"]
+      secretName: platform-app-tls
+  rules:
+    - host: dev.app.example.com
