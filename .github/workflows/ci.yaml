@@ -59,7 +59,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
 
       - name: Scan image with Trivy (block on CRITICAL)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}"
           severity: "CRITICAL,HIGH"
