@@ -1,5 +1,5 @@
-# CI: build, test, scan, push. This workflow NEVER touches the Kubernetes
-# cluster and holds no kubeconfig - it only needs ECR push + git write access.
+# CI: test, build, scan, and push.
+# Uses repository read access and AWS ECR push permissions.
 name: CI
 
 on:
@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 permissions:
-  id-token: write   # for OIDC assume-role into AWS, no static keys
+  id-token: write
   contents: read
 
 env:
@@ -21,30 +21,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+
       - name: Unit tests
         working-directory: app/src
         run: go test ./... -race -cover
 
   build-scan-push:
+    if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
+
     steps:
       - uses: actions/checkout@v4
 
       - id: tag
         run: echo "tag=$(echo ${GITHUB_SHA} | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
+      - name: Check GitHub OIDC identity
+        shell: python
+        run: |
+          import os, json, base64, urllib.request
+
+          url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          url += "&audience=sts.amazonaws.com"
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Authorization": "Bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+              }
+          )
+          with urllib.request.urlopen(request) as response:
+              token = json.load(response)["value"]
+
+          payload = token.split(".")[1]
+          claims = json.loads(
+              base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+          )
+          print("Subject:", claims["sub"])
+          print("Audience:", claims["aud"])
+
       - name: Configure AWS credentials (OIDC, no static keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::743978812281:role/github-actions-ci
           aws-region: ${{ env.AWS_REGION }}
-          
+
       - name: Check AWS identity
         run: aws sts get-caller-identity
 
@@ -58,7 +85,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
 
-      - name: Scan image with Trivy (block on CRITICAL)
+      - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.tag }}"
@@ -74,7 +101,6 @@ jobs:
           output-file: sbom.spdx.json
 
       - name: Push image
-        if: github.event_name == 'push'
         run: docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.tag.outputs.tag }}
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
