@@ -9,7 +9,7 @@ metadata:
 spec:
   description: Sample platform application across dev/staging/prod
   sourceRepos:
-    - "https://github.com/ORG/k8s-senior-devops-project.git"
+    - https://github.com/tek-giant/k8s-senior-devops-project.git
   destinations:
     - namespace: app
       server: https://kubernetes.default.svc
