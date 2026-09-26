@@ -3,3 +3,5 @@
 *.tfstate.*git 
 *.tfvars
 sbom.spdx.json
+*.tfplan
+.DS_Store

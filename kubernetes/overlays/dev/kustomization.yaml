@@ -4,14 +4,15 @@ kind: Kustomization
 namespace: app
 
 resources:
-- ../../base
+  - ../../base
+  - externalsecret-db.yaml
 
 patches:
-- path: patch-deployment.yaml
-- path: patch-hpa.yaml
-- path: patch-ingress.yaml
+  - path: patch-deployment.yaml
+  - path: patch-hpa.yaml
+  - path: patch-ingress.yaml
 
 images:
-- name: ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app
-  newName: 743978812281.dkr.ecr.us-east-1.amazonaws.com/platform-app
-  newTag: 92d0e8d
+  - name: ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app
+    newName: 743978812281.dkr.ecr.us-east-1.amazonaws.com/platform-app
+    newTag: 92d0e8d
