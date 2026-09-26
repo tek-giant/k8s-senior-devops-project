@@ -1,7 +1,4 @@
-# CD (dev only): after CI pushes an image from main, bump the dev overlay's
-# image tag via a commit to THIS repo's GitOps path. Argo CD (already watching
-# kubernetes/overlays/dev) picks up the change and syncs automatically.
-# This job has git write access - it never has cluster or AWS deploy credentials.
+# Update the dev deployment after CI successfully publishes an image.
 name: CD - promote to dev
 
 on:
@@ -13,28 +10,50 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: promote-dev
+  cancel-in-progress: false
+
 jobs:
   bump-dev-image:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+
+    env:
+      CI_SHA: ${{ github.event.workflow_run.head_sha }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
 
       - name: Install kustomize
-        run: curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh \
+            -o install-kustomize.sh
+          bash install-kustomize.sh
 
       - name: Bump image tag in dev overlay
         working-directory: kubernetes/overlays/dev
         run: |
           ../../../kustomize edit set image \
-            ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app=ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app:dev-${GITHUB_SHA::7}
+            "ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app=743978812281.dkr.ecr.us-east-1.amazonaws.com/platform-app:${CI_SHA:0:7}"
 
       - name: Commit and push
         run: |
           git config user.name "gitops-bot"
           git config user.email "gitops-bot@example.com"
+
           git add kubernetes/overlays/dev/kustomization.yaml
-          git commit -m "chore(dev): deploy dev-${GITHUB_SHA::7}" || echo "no changes"
-          git push
+
+          if git diff --cached --quiet; then
+            echo "Image tag is already up to date."
+            exit 0
+          fi
+
+          git commit -m "chore(dev): deploy ${CI_SHA:0:7}"
+          git pull --rebase origin main
+          git push origin HEAD:main
