@@ -10,4 +10,4 @@ patches:
 images:
 - name: ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app
   newName: ACCOUNT_ID.dkr.ecr.eu-west-2.amazonaws.com/platform-app
-  newTag: dev-95b7323
+  newTag: dev-5659260
